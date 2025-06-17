@@ -2,12 +2,425 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Tetris Game</title>
+    <!-- External CSS -->
     <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Inline critical CSS for initial load -->
+    <style>
+        /* Minimal critical CSS to prevent layout shift */
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .game-container {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .game-container.loaded {
+            opacity: 1;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 10px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 0 5px;
+        }
+
+        .info-box {
+            background: var(--panel-bg);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            flex: 1;
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-color);
+            margin-top: 2px;
+        }
+
+        .game-area {
+            position: relative;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            touch-action: none;
+        }
+        #tetris {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1/2;
+            background: #111;
+            border: 4px solid var(--primary-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            touch-action: none;
+        }
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            font-size: 24px;
+            border-radius: 4px;
+            padding: 20px;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .game-over.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .game-over h2 {
+            font-size: 2rem;
+            margin: 0 0 15px 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .game-over p {
+            font-size: 1.2rem;
+            margin: 0 0 20px 0;
+        }
+        
+        .game-over-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 90%;
+            width: 100%;
+        }
+        /* Game Buttons */
+        .game-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            margin: 0;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            flex: 1;
+            max-width: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 50px;
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.1);
+        }
+
+        .btn#restart {
+            background: #f44336;
+        }
+
+        .btn#restart:active {
+            background: #d32f2f;
+        }
+
+        /* Game Controls */
+        .controls {
+            margin: 25px 0 15px;
+            touch-action: none;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: center;
+            margin: 8px 0;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            width: 70px;
+            height: 70px;
+            margin: 0;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        .control-btn:active,
+        .control-btn.active {
+            transform: scale(0.95);
+            filter: brightness(1.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .control-btn::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            opacity: 0;
+            transition: all 0.1s ease;
+            border-radius: 50%;
+        }
+
+        .control-btn:active::after,
+        .control-btn.active::after {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+        
+        /* Specific active states for different buttons */
+        #rotate:active,
+        #rotate.active {
+            background: #1e88e5;
+        }
+        
+        #drop:active,
+        #drop.active {
+            background: #f57c00;
+        }
+        
+        #moveLeft:active,
+        #moveLeft.active,
+        #moveRight:active,
+        #moveRight.active,
+        #moveDown:active,
+        #moveDown.active {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        /* Directional buttons */
+        #moveLeft, #moveRight, #moveDown {
+            background: rgba(0, 0, 0, 0.6);
+            position: relative;
+        }
+
+        #rotate {
+            background: #2196F3;
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+        }
+
+        #drop {
+            background: #FF9800;
+            width: 80px;
+            height: 80px;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        #drop svg {
+            margin-bottom: 2px;
+        }
+        
+        #drop span {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        
+        /* Responsive adjustments for control buttons */
+        @media (max-width: 500px) {
+            .game-container {
+                padding: 5px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+                margin-bottom: 5px;
+            }
+            
+            .info-box {
+                padding: 6px 10px;
+            }
+            
+            .info-label {
+                font-size: 11px;
+            }
+            
+            .info-value {
+                font-size: 18px;
+            }
+            
+            #rotate,
+            #drop {
+                width: 70px;
+                height: 70px;
+                font-size: 22px;
+            }
+            
+            #drop span {
+                font-size: 11px;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+                height: 45px;
+            }
+        }
+        
+        /* Portrait mode adjustments */
+        @media (max-height: 700px) and (orientation: portrait) {
+            .game-container {
+                transform: scale(0.9);
+                transform-origin: top center;
+            }
+        }
+        
+        /* Landscape mode adjustments */
+        @media (orientation: landscape) and (max-height: 500px) {
+            .game-container {
+                display: flex;
+                flex-direction: row;
+                align-items: flex-start;
+                gap: 10px;
+                max-width: 100%;
+                padding: 10px;
+                transform: scale(0.8);
+                transform-origin: center top;
+            }
+            
+            .game-area {
+                order: 1;
+                margin: 0 auto;
+            }
+            
+            .controls {
+                order: 2;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                height: 100%;
+            }
+            
+            .game-buttons {
+                order: 3;
+                flex-direction: column;
+                margin: 0;
+                justify-content: center;
+                height: 100%;
+            }
+            
+            .control-row {
+                margin: 5px 0;
+            }
+            
+            .btn {
+                max-width: 100px;
+                margin: 5px 0;
+            }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 400px) {
+            .control-btn {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+                height: 45px;
+            }
+        }
+
+        /* Prevent text selection on buttons */
+        .btn, .control-btn {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
 </head>
 <body>
-    <div class="game-container">
+    <div class="game-container loaded">
         <h1>Tetris</h1>
         
         <div class="game-info">
@@ -26,7 +439,7 @@
         </div>
         
         <div class="game-area">
-            <canvas id="tetris"></canvas>
+            <canvas id="tetris" width="300" height="600"></canvas>
             
             <!-- Game Over Overlay -->
             <div id="gameOver" class="game-over">
@@ -36,36 +449,65 @@
                     <button id="gameOverRestart" class="btn">PLAY AGAIN</button>
                 </div>
             </div>
+        </div>
+        
+        <!-- Game Controls -->
+        <div class="controls">
+            <!-- Top Row: Rotate Button -->
+            <div class="control-row">
+                <button id="rotate" class="control-btn" aria-label="Rotate">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6"></path>
+                        <path d="M21.34 15.57a10 10 0 1 1-.57-8.38"></path>
+                    </svg>
+                </button>
+            </div>
             
-            <div class="controls">
-                <div class="control-row">
-                    <button id="rotate" class="control-btn" aria-label="Rotate">↻</button>
-                </div>
-                <div class="control-row">
-                    <button id="left" class="control-btn" aria-label="Move Left">←</button>
-                    <button id="down" class="control-btn" aria-label="Move Down">↓</button>
-                    <button id="right" class="control-btn" aria-label="Move Right">→</button>
-                </div>
-                <div class="control-row">
-                    <button id="drop" class="control-btn" aria-label="Drop">DROP</button>
-                </div>
+            <!-- Middle Row: Directional Buttons -->
+            <div class="control-row">
+                <button id="moveLeft" class="control-btn" aria-label="Move Left">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <button id="moveDown" class="control-btn" aria-label="Move Down">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <button id="moveRight" class="control-btn" aria-label="Move Right">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Bottom Row: Drop Button -->
+            <div class="control-row">
+                <button id="drop" class="control-btn drop-btn" aria-label="Drop">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="8 12 12 16 16 12"></polyline>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                    </svg>
+                    <span>DROP</span>
+                </button>
             </div>
         </div>
         
+        <!-- Game Buttons -->
         <div class="game-buttons">
-            <button id="startPause" class="btn">START</button>
-            <button id="restart" class="btn">RESET</button>
-        </div>
-        
-        <div id="gameOver" class="game-over">
-            <div class="game-over-content">
-                <h2>GAME OVER</h2>
-                <p>Score: <span id="finalScore">0</span></p>
-                <button id="gameOverRestart" class="btn">PLAY AGAIN</button>
-            </div>
+            <button id="startPause" class="btn start-btn">
+                <span>START</span>
+            </button>
+            <button id="restart" class="btn">
+                <span>RESET</span>
+            </button>
         </div>
     </div>
     
+    <!-- 単一のJavaScriptファイルを読み込み -->
+    <!-- Game Scripts -->
     <script src="js/tetris.js"></script>
 </body>
 </html>

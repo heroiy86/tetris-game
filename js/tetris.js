@@ -1,9 +1,19 @@
-// ===== GAME CONSTANTS =====
+/**
+ * Tetris Game
+ * 
+ * This file contains the main game logic for the Tetris game.
+ * It handles game state, controls, rendering, and game mechanics.
+ */
+
+/**
+ * Game grid configuration
+ * Defines the game board dimensions, block size, and colors
+ */
 const GRID = {
-    COLS: 10,
-    ROWS: 20,
-    BLOCK_SIZE: 30,
-    COLORS: [
+    COLS: 10,                       // Number of columns in the game board
+    ROWS: 20,                       // Number of rows in the game board
+    BLOCK_SIZE: 30,                 // Size of each block in pixels
+    COLORS: [                       // Colors for different tetrominoes
         '#00f0f0', // I - Cyan
         '#0000f0', // J - Blue
         '#f0a000', // L - Orange
@@ -14,451 +24,505 @@ const GRID = {
     ]
 };
 
+/**
+ * Game configuration
+ * Defines game rules, scoring, and timing
+ */
 const GAME = {
-    INITIAL_LEVEL: 1,
-    LINES_PER_LEVEL: 10,
-    INITIAL_SPEED: 1000, // ms
-    SPEED_DECREMENT: 100, // ms
-    MIN_SPEED: 100, // ms
-    POINTS: {
-        SINGLE: 100,
-        DOUBLE: 300,
-        TRIPLE: 500,
-        TETRIS: 800,
-        SOFT_DROP: 1,
-        HARD_DROP: 2
+    INITIAL_LEVEL: 1,               // Starting level
+    LINES_PER_LEVEL: 10,            // Lines needed to advance to next level
+    INITIAL_SPEED: 1000,            // Initial drop speed in milliseconds
+    SPEED_DECREMENT: 100,           // Speed decrease per level (ms)
+    MIN_SPEED: 100,                 // Minimum drop speed (ms)
+    POINTS: {                       // Points system
+        SINGLE: 100,                // 1 line cleared
+        DOUBLE: 300,                // 2 lines cleared
+        TRIPLE: 500,                // 3 lines cleared
+        TETRIS: 800,                // 4 lines cleared (Tetris)
+        SOFT_DROP: 1,               // Points per cell soft dropped
+        HARD_DROP: 2                // Points per cell hard dropped
     }
 };
 
-// ===== GAME STATE =====
+/**
+ * Game state object
+ * Tracks the current state of the game
+ */
 const gameState = {
-    // Canvas elements
-    canvas: null,
-    ctx: null,
+    // Canvas and rendering
+    canvas: null,                   // Canvas element
+    ctx: null,                      // Canvas 2D context
     
-    // Game state
-    board: [],
-    currentPiece: null,
-    nextPiece: null,
-    score: 0,
-    level: GAME.INITIAL_LEVEL,
-    lines: 0,
-    isGameOver: false,
-    isPaused: false,
-    dropStart: 0,
-    dropInterval: GAME.INITIAL_SPEED,
-    animationId: null,
+    // Game board and pieces
+    board: [],                      // 2D array representing the game board
+    currentPiece: null,             // Currently active tetromino
+    nextPiece: null,                // Next tetromino to appear
     
-    // DOM elements
-    elements: {
-        score: null,
-        level: null,
-        lines: null,
-        startPauseBtn: null,
-        restartBtn: null,
-        gameOverScreen: null,
-        finalScore: null,
-        gameOverRestartBtn: null
-    }
+        // Game progress
+    score: 0,                       // Current score
+    level: GAME.INITIAL_LEVEL,      // Current level
+    lines: 0,                       // Total lines cleared
+    isGameOver: false,              // Game over state
+    isPaused: false,                // Paused state
+    
+    // Timing and animation
+    dropStart: 0,                   // When the current piece started falling
+    dropInterval: GAME.INITIAL_SPEED, // Current drop interval
+    animationId: null,              // Current animation frame ID
+    
+    // Input state
+    keys: {                         // Keyboard key states
+        ArrowLeft: false,
+        ArrowRight: false,
+        ArrowDown: false,
+        ArrowUp: false,
+        ' ': false,                 // Space for hard drop
+        'p': false                  // P key for pause
+    },
+    
+    // UI elements cache
+    elements: {},                   // Cached DOM elements
+    
+    // Input timing and intervals
+    moveRightInterval: null,        // Interval for continuous right movement
+    moveDownInterval: null,         // Interval for continuous down movement
+    lastMove: 0,                    // Timestamp of last move
+    lastRotate: 0,                  // Timestamp of last rotation
+    lastDrop: 0,                    // Timestamp of last drop
+    lastHardDrop: 0                 // Timestamp of last hard drop
 };
 
-// ===== TETROMINO SHAPES =====
-const TETROMINOES = [
-    // I
-    [
-        [0, 0, 0, 0],
-        [1, 1, 1, 1],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0]
-    ],
-    // J
-    [
-        [1, 0, 0],
-        [1, 1, 1],
-        [0, 0, 0]
-    ],
-    // L
-    [
-        [0, 0, 1],
-        [1, 1, 1],
-        [0, 0, 0]
-    ],
-    // O
-    [
-        [1, 1],
-        [1, 1]
-    ],
-    // S
-    [
-        [0, 1, 1],
-        [1, 1, 0],
-        [0, 0, 0]
-    ],
-    // T
-    [
-        [0, 1, 0],
-        [1, 1, 1],
-        [0, 0, 0]
-    ],
-    // Z
-    [
-        [1, 1, 0],
-        [0, 1, 1],
-        [0, 0, 0]
-    ]
-];
+// Initialize the game when the page loads
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        // Initialize canvas
+        gameState.canvas = document.getElementById('tetris');
+        if (!gameState.canvas) {
+            throw new Error('Canvas element not found');
+        }
+        
+        gameState.ctx = gameState.canvas.getContext('2d');
+        if (!gameState.ctx) {
+            throw new Error('Could not get 2D rendering context');
+        }
+        
+        // Cache DOM elements for better performance
+        cacheElements();
+        
+        // Set up event listeners
+        setupKeyboardControls();
+        setupTouchControls();
+        setupControlButtons();
+        
+        // Initialize game board
+        createBoard();
+        
+    } catch (error) {
+        console.error('Error initializing game:', error);
+        alert('Failed to initialize the game. Please check the console for details.');
+    }
+});
 
-// ===== GAME INITIALIZATION =====
-function init() {
-    // Initialize canvas and context
-    gameState.canvas = document.getElementById('tetris');
-    gameState.ctx = gameState.canvas.getContext('2d');
-    
-    // Set canvas size
-    gameState.canvas.width = GRID.COLS * GRID.BLOCK_SIZE;
-    gameState.canvas.height = GRID.ROWS * GRID.BLOCK_SIZE;
-    
-    // Cache DOM elements
-    cacheElements();
-    
-    // Set up event listeners
-    setupEventListeners();
-    
-    // Initialize game
-    resetGame();
-    
-    // Start the game loop
-    gameLoop();
-}
-
-// Cache DOM elements for better performance
+/**
+ * Cache frequently accessed DOM elements
+ */
 function cacheElements() {
     gameState.elements = {
-        score: document.getElementById('score'),
-        level: document.getElementById('level'),
-        lines: document.getElementById('lines'),
         startPauseBtn: document.getElementById('startPause'),
         restartBtn: document.getElementById('restart'),
-        gameOverScreen: document.getElementById('gameOver'),
-        finalScore: document.getElementById('finalScore'),
+        scoreDisplay: document.getElementById('score'),
+        levelDisplay: document.getElementById('level'),
+        linesDisplay: document.getElementById('lines'),
+        gameOverDisplay: document.getElementById('gameOver'),
+        finalScoreDisplay: document.getElementById('finalScore'),
         gameOverRestartBtn: document.getElementById('gameOverRestart')
     };
 }
 
-// Set up all event listeners
-function setupEventListeners() {
-    // Keyboard controls
-    document.addEventListener('keydown', handleKeyPress);
-    
-    // Button controls
-    const { startPauseBtn, restartBtn, gameOverRestartBtn } = gameState.elements;
-    
-    startPauseBtn.addEventListener('click', togglePause);
-    restartBtn.addEventListener('click', resetGame);
-    gameOverRestartBtn.addEventListener('click', () => {
-        gameState.elements.gameOverScreen.classList.remove('active');
-        resetGame();
-    });
-    
-    // Touch controls
-    setupTouchControls();
+/**
+ * Create an empty game board
+ */
+function createBoard() {
+    // Create a 2D array filled with zeros
+    gameState.board = Array(GRID.ROWS).fill().map(() => Array(GRID.COLS).fill(0));
 }
 
-// Set up touch controls for mobile
+/**
+ * Set up keyboard controls for the game
+ */
+function setupKeyboardControls() {
+    document.addEventListener('keydown', (e) => {
+        if (gameState.isGameOver) return;
+        
+        // Prevent default for game controls to avoid page scrolling
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'p'].includes(e.key)) {
+            e.preventDefault();
+        }
+        
+        // Only process keydown if the key wasn't already pressed
+        if (gameState.keys[e.key] === undefined) return;
+        if (gameState.keys[e.key]) return;
+        
+        gameState.keys[e.key] = true;
+        
+        // Handle key press
+        const now = performance.now();
+        const timeSinceLastMove = now - gameState.lastMove;
+        const moveDelay = 100; // ms
+        
+        switch (e.key) {
+            case 'ArrowLeft':
+                if (timeSinceLastMove >= moveDelay) {
+                    move(-1, 0);
+                    gameState.lastMove = now;
+                }
+                break;
+                
+            case 'ArrowRight':
+                if (timeSinceLastMove >= moveDelay) {
+                    move(1, 0);
+                    gameState.lastMove = now;
+                }
+                break;
+                
+            case 'ArrowDown':
+                if (timeSinceLastMove >= moveDelay) {
+                    move(0, 1);
+                    gameState.lastMove = now;
+                    gameState.score += GAME.POINTS.SOFT_DROP;
+                    updateUI();
+                }
+                break;
+                
+            case 'ArrowUp':
+                const nowRotate = performance.now();
+                if (nowRotate - gameState.lastRotate > 100) {
+                    rotate();
+                    gameState.lastRotate = nowRotate;
+                }
+                break;
+                
+            case ' ':
+                if (now - gameState.lastDrop > 100) {
+                    hardDrop();
+                    gameState.lastDrop = now;
+                }
+                break;
+                
+            case 'p':
+                togglePause();
+                break;
+        }
+    });
+    
+    // Handle key up events
+    document.addEventListener('keyup', (e) => {
+        if (gameState.keys[e.key] !== undefined) {
+            gameState.keys[e.key] = false;
+        }
+    });
+}
+
+/**
+ * Set up touch controls for mobile devices
+ */
 function setupTouchControls() {
-    const controlButtons = ['left', 'right', 'down', 'rotate', 'drop'];
+    const touchArea = gameState.canvas;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let touchMoved = false;
+    const SWIPE_THRESHOLD = 30;
+    const TAP_THRESHOLD = 200;
+    const SWIPE_VELOCITY_THRESHOLD = 0.3; // pixels/ms
+    let lastTouchTime = 0;
+    let lastMoveTime = 0;
+    let lastMoveY = 0;
+    let dropInterval = null;
+
+    // Prevent context menu on long press
+    touchArea.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        return false;
+    }, false);
+
+    touchArea.addEventListener('touchstart', (e) => {
+        if (gameState.isPaused || gameState.isGameOver) return;
+        
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchStartTime = Date.now();
+        touchMoved = false;
+        lastMoveTime = touchStartTime;
+        lastMoveY = touchStartY;
+        
+        // Clear any existing drop interval
+        if (dropInterval) {
+            clearInterval(dropInterval);
+            dropInterval = null;
+        }
+        
+        // Start continuous drop after a short delay
+        const startX = touchStartX;
+        const startY = touchStartY;
+        
+        dropInterval = setTimeout(() => {
+            if (!touchMoved && !gameState.isPaused && !gameState.isGameOver) {
+                // Start continuous drop
+                const drop = () => {
+                    if (!touchMoved) {
+                        move(0, 1);
+                        dropInterval = setTimeout(drop, 100); // Fast drop
+                    }
+                };
+                drop();
+            }
+        }, 300); // Delay before starting continuous drop
+        
+    }, { passive: true });
+
+    touchArea.addEventListener('touchmove', (e) => {
+        if (gameState.isPaused || gameState.isGameOver) return;
+        
+        const touch = e.touches[0];
+        const currentX = touch.clientX;
+        const currentY = touch.clientY;
+        const currentTime = Date.now();
+        
+        // Calculate movement
+        const deltaX = currentX - touchStartX;
+        const deltaY = currentY - touchStartY;
+        
+        // Check if touch has moved enough to be considered a swipe
+        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+            touchMoved = true;
+            
+            // Clear continuous drop if active
+            if (dropInterval) {
+                clearInterval(dropInterval);
+                dropInterval = null;
+            }
+            
+            // Calculate time delta and velocity
+            const timeDelta = currentTime - lastMoveTime;
+            const velocityY = (currentY - lastMoveY) / timeDelta;
+            
+            // Update last position and time
+            lastMoveY = currentY;
+            lastMoveTime = currentTime;
+            
+            // Handle horizontal movement with velocity
+            if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+                // Only move if we have enough velocity or have moved significantly
+                if (Math.abs(velocityY) < SWIPE_VELOCITY_THRESHOLD) {
+                    if (deltaX > 0) {
+                        move(1, 0);
+                    } else {
+                        move(-1, 0);
+                    }
+                    // Reset start position to prevent continuous movement
+                    touchStartX = currentX;
+                }
+            }
+        }
+        
+        e.preventDefault();
+    }, { passive: false });
+
+    touchArea.addEventListener('touchend', (e) => {
+        if (gameState.isPaused || gameState.isGameOver) return;
+        
+        // Clear any drop interval
+        if (dropInterval) {
+            clearInterval(dropInterval);
+            dropInterval = null;
+        }
+        
+        const touch = e.changedTouches[0];
+        const touchEndX = touch.clientX;
+        const touchEndY = touch.clientY;
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        const touchDuration = Date.now() - touchStartTime;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // Check if it's a tap (short duration and small movement)
+        if (!touchMoved && touchDuration < TAP_THRESHOLD && distance < SWIPE_THRESHOLD * 2) {
+            // Rotate on tap
+            rotate();
+            return;
+        }
+        
+        // Check for swipe direction if movement was significant
+        if (distance > SWIPE_THRESHOLD) {
+            const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+            
+            // Determine swipe direction based on angle
+            if (angle > -45 && angle < 45) {
+                // Right swipe
+                move(1, 0);
+            } else if (angle > 135 || angle < -135) {
+                // Left swipe
+                move(-1, 0);
+            } else if (angle >= 45 && angle <= 135) {
+                // Down swipe - soft drop
+                move(0, 1);
+            } else {
+                // Up swipe - hard drop
+                hardDrop();
+            }
+        }
+        
+        e.preventDefault();
+    }, { passive: false });
     
-    controlButtons.forEach(buttonId => {
-        const button = document.getElementById(buttonId);
-        if (button) {
-            button.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                handleControl(buttonId);
-            });
-            button.addEventListener('click', () => handleControl(buttonId));
+    // Prevent window scrolling on touch
+    document.body.addEventListener('touchmove', (e) => {
+        if (e.target === touchArea) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    // Set up button event listeners
+    const leftBtn = document.getElementById('moveLeft');
+    const rightBtn = document.getElementById('moveRight');
+    const downBtn = document.getElementById('moveDown');
+    const rotateBtn = document.getElementById('rotate');
+    const dropBtn = document.getElementById('drop');
+    
+    // Button event handlers
+    const handleButtonPress = (action) => {
+        if (gameState.isPaused || gameState.isGameOver) return;
+        
+        switch(action) {
+            case 'left':
+                move(-1, 0);
+                break;
+            case 'right':
+                move(1, 0);
+                break;
+            case 'down':
+                move(0, 1);
+                break;
+            case 'rotate':
+                rotate();
+                break;
+            case 'drop':
+                hardDrop();
+                break;
+        }
+    };
+    
+    // Add button event listeners
+    const addButtonListeners = (element, action) => {
+        if (!element) return;
+        
+        // Click event for mouse
+        element.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleButtonPress(action);
+        });
+        
+        // Touch events for mobile
+        element.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            // Add visual feedback
+            element.classList.add('active');
+            handleButtonPress(action);
+        });
+        
+        element.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            element.classList.remove('active');
+        });
+        
+        element.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            element.classList.remove('active');
+        });
+    };
+    
+    // Set up all control buttons
+    addButtonListeners(leftBtn, 'left');
+    addButtonListeners(rightBtn, 'right');
+    addButtonListeners(downBtn, 'down');
+    addButtonListeners(rotateBtn, 'rotate');
+    addButtonListeners(dropBtn, 'drop');
+}
+
+/**
+ * Set up control buttons (start/pause, restart)
+ */
+function setupControlButtons() {
+    const { elements } = gameState;
+    
+    if (elements.startPauseBtn) {
+        elements.startPauseBtn.addEventListener('click', togglePause);
+    }
+    
+    if (elements.restartBtn) {
+        elements.restartBtn.addEventListener('click', resetGame);
+    }
+    
+    if (elements.gameOverRestartBtn) {
+        elements.gameOverRestartBtn.addEventListener('click', resetGame);
+    }
+    
+    // Add keyboard event for space to start/pause when game is not focused
+    document.addEventListener('keydown', (e) => {
+        if (e.key === ' ' && !gameState.currentPiece) {
+            e.preventDefault();
+            startGame();
         }
     });
 }
 
-// Handle control button presses
-function handleControl(control) {
-    if (gameState.isGameOver || gameState.isPaused) return;
-    
-    switch (control) {
-        case 'left':
-            move(-1, 0);
-            break;
-        case 'right':
-            move(1, 0);
-            break;
-        case 'down':
-            move(0, 1);
-            break;
-        case 'rotate':
-            rotate();
-            break;
-        case 'drop':
-            hardDrop();
-            break;
-    }
-}
-
-// ===== GAME LOGIC =====
-
-// Reset the game to initial state
-function resetGame() {
-    // Clear any existing game loop
-    if (gameState.animationId) {
-        cancelAnimationFrame(gameState.animationId);
-    }
-    
-    // Reset game state
-    gameState.board = createMatrix(GRID.COLS, GRID.ROWS);
-    gameState.score = 0;
-    gameState.level = GAME.INITIAL_LEVEL;
-    gameState.lines = 0;
-    gameState.isGameOver = false;
-    gameState.isPaused = false;
-    gameState.dropInterval = GAME.INITIAL_SPEED;
-    
-    // Update UI
-    updateUI();
-    
-    // Create new pieces
-    gameState.currentPiece = createPiece();
-    gameState.nextPiece = createPiece();
-    
-    // Hide game over screen
-    gameState.elements.gameOverScreen.classList.remove('active');
-    
-    // Update button text
-    gameState.elements.startPauseBtn.textContent = 'PAUSE';
-    
-    // Start the game loop
-    gameState.dropStart = performance.now();
-    gameState.animationId = requestAnimationFrame(gameLoop);
-}
-
-// Create a new game board matrix
-function createMatrix(width, height) {
-    const matrix = [];
-    for (let y = 0; y < height; y++) {
-        matrix.push(new Array(width).fill(0));
-    }
-    return matrix;
-}
-
-// Create a new random tetromino piece
+/**
+ * Create a new tetromino piece
+ * @returns {Object} A new tetromino piece
+ */
 function createPiece() {
-    const shape = JSON.parse(JSON.stringify(
-        TETROMINOES[Math.floor(Math.random() * TETROMINOES.length)]
-    ));
+    const shapes = [
+        { shape: [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], color: 0 }, // I
+        { shape: [[1,0,0], [1,1,1], [0,0,0]], color: 1 }, // J
+        { shape: [[0,0,1], [1,1,1], [0,0,0]], color: 2 }, // L
+        { shape: [[1,1], [1,1]], color: 3 }, // O
+        { shape: [[0,1,1], [1,1,0], [0,0,0]], color: 4 }, // S
+        { shape: [[0,1,0], [1,1,1], [0,0,0]], color: 5 }, // T
+        { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 6 }  // Z
+    ];
     
+    const piece = shapes[Math.floor(Math.random() * shapes.length)];
     return {
-        shape,
-        pos: { x: Math.floor(GRID.COLS / 2) - Math.floor(shape[0].length / 2), y: 0 },
-        colorIndex: Math.floor(Math.random() * GRID.COLORS.length)
+        shape: JSON.parse(JSON.stringify(piece.shape)),
+        color: piece.color,
+        x: Math.floor(GRID.COLS / 2) - Math.floor(piece.shape[0].length / 2),
+        y: 0
     };
 }
 
-// Main game loop
-function gameLoop(timestamp) {
-    if (gameState.isGameOver) {
-        gameOver();
-        return;
-    }
-    
-    if (gameState.isPaused) {
-        gameState.animationId = requestAnimationFrame(gameLoop);
-        return;
-    }
-    
-    const deltaTime = timestamp - gameState.dropStart;
-    
-    if (deltaTime > gameState.dropInterval) {
-        move(0, 1);
-        gameState.dropStart = timestamp;
-    }
-    
-    draw();
-    gameState.animationId = requestAnimationFrame(gameLoop);
-}
-
-// Draw the game state
-function draw() {
-    // Clear the canvas
-    gameState.ctx.fillStyle = '#1a1a1a';
-    gameState.ctx.fillRect(0, 0, gameState.canvas.width, gameState.canvas.height);
-    
-    // Draw the board
-    drawBoard();
-    
-    // Draw the current piece
-    if (gameState.currentPiece) {
-        drawPiece(gameState.currentPiece);
-    }
-    
-    // Draw grid lines
-    drawGrid();
-    
-    // Draw ghost piece
-    if (gameState.currentPiece) {
-        drawGhostPiece();
-    }
-}
-
-// Draw the game board
-function drawBoard() {
-    gameState.board.forEach((row, y) => {
-        row.forEach((value, x) => {
-            if (value !== 0) {
-                drawBlock(x, y, value - 1);
-            }
-        });
-    });
-}
-
-// Draw a single block
-function drawBlock(x, y, colorIndex, alpha = 1) {
-    const size = GRID.BLOCK_SIZE - 1;
-    const xPos = x * GRID.BLOCK_SIZE;
-    const yPos = y * GRID.BLOCK_SIZE;
-    
-    // Main block
-    gameState.ctx.fillStyle = GRID.COLORS[colorIndex];
-    if (alpha < 1) {
-        gameState.ctx.globalAlpha = alpha;
-    }
-    gameState.ctx.fillRect(xPos, yPos, size, size);
-    
-    // Highlight
-    gameState.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    gameState.ctx.fillRect(xPos, yPos, size, size / 2);
-    
-    // Border
-    gameState.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-    gameState.ctx.lineWidth = 1;
-    gameState.ctx.strokeRect(xPos, yPos, size, size);
-    
-    // Reset alpha
-    if (alpha < 1) {
-        gameState.ctx.globalAlpha = 1;
-    }
-}
-
-// Draw grid lines
-function drawGrid() {
-    gameState.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    gameState.ctx.lineWidth = 0.5;
-    
-    // Vertical lines
-    for (let x = 0; x <= GRID.COLS; x++) {
-        const xPos = x * GRID.BLOCK_SIZE;
-        gameState.ctx.beginPath();
-        gameState.ctx.moveTo(xPos, 0);
-        gameState.ctx.lineTo(xPos, gameState.canvas.height);
-        gameState.ctx.stroke();
-    }
-    
-    // Horizontal lines
-    for (let y = 0; y <= GRID.ROWS; y++) {
-        const yPos = y * GRID.BLOCK_SIZE;
-        gameState.ctx.beginPath();
-        gameState.ctx.moveTo(0, yPos);
-        gameState.ctx.lineTo(gameState.canvas.width, yPos);
-        gameState.ctx.stroke();
-    }
-}
-
-// Draw a tetromino piece
-function drawPiece(piece, alpha = 1) {
-    piece.shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-            if (value !== 0) {
-                drawBlock(
-                    piece.pos.x + x,
-                    piece.pos.y + y,
-                    piece.colorIndex,
-                    alpha
-                );
-            }
-        });
-    });
-}
-
-// Draw ghost piece (preview of where the piece will land)
-function drawGhostPiece() {
-    const ghostPiece = {
-        ...gameState.currentPiece,
-        pos: { ...gameState.currentPiece.pos }
-    };
-    
-    // Move ghost piece down until it collides
-    while (!checkCollision(ghostPiece.pos.x, ghostPiece.pos.y + 1, ghostPiece.shape)) {
-        ghostPiece.pos.y++;
-    }
-    
-    // Draw semi-transparent ghost piece
-    drawPiece(ghostPiece, 0.3);
-}
-
-// ===== GAME CONTROLS =====
-
-// Handle keyboard input
-function handleKeyPress(e) {
-    if (gameState.isGameOver || gameState.isPaused) {
-        if (e.key === 'p') {
-            togglePause();
-        }
-        return;
-    }
-    
-    switch (e.key) {
-        case 'ArrowLeft':
-            move(-1, 0);
-            break;
-        case 'ArrowRight':
-            move(1, 0);
-            break;
-        case 'ArrowDown':
-            move(0, 1);
-            break;
-        case 'ArrowUp':
-            rotate();
-            break;
-        case ' ':
-            hardDrop();
-            e.preventDefault(); // Prevent page scroll on spacebar
-            break;
-        case 'p':
-        case 'P':
-            togglePause();
-            break;
-    }
-}
-
-// Move the current piece
+/**
+ * Move the current piece
+ * @param {number} offsetX - X offset to move
+ * @param {number} offsetY - Y offset to move
+ * @returns {boolean} True if the move was successful
+ */
 function move(offsetX, offsetY) {
     if (gameState.isGameOver || gameState.isPaused) return false;
     
-    if (!checkCollision(
-        gameState.currentPiece.pos.x + offsetX,
-        gameState.currentPiece.pos.y + offsetY,
-        gameState.currentPiece.shape
-    )) {
-        gameState.currentPiece.pos.x += offsetX;
-        gameState.currentPiece.pos.y += offsetY;
-        
-        // Update score for soft drop
-        if (offsetY > 0) {
-            gameState.score += GAME.POINTS.SOFT_DROP;
-            updateUI();
-        }
-        
+    const { currentPiece } = gameState;
+    
+    if (!currentPiece) return false;
+    
+    // Check if the move is valid
+    if (!checkCollision(currentPiece.x + offsetX, currentPiece.y + offsetY, currentPiece.shape)) {
+        currentPiece.x += offsetX;
+        currentPiece.y += offsetY;
         return true;
     }
     
-    // If we can't move down, lock the piece
+    // If moving down and can't move, lock the piece
     if (offsetY > 0) {
         lockPiece();
     }
@@ -466,101 +530,83 @@ function move(offsetX, offsetY) {
     return false;
 }
 
-// Rotate the current piece
+/**
+ * Rotate the current piece
+ */
 function rotate() {
-    if (gameState.isGameOver || gameState.isPaused) return;
+    if (gameState.isGameOver || gameState.isPaused || !gameState.currentPiece) return;
     
-    const originalShape = gameState.currentPiece.shape;
-    const rows = originalShape.length;
-    const cols = originalShape[0].length;
+    const { currentPiece } = gameState;
     const newShape = [];
     
-    // Create a new rotated shape (90 degrees clockwise)
-    for (let col = 0; col < cols; col++) {
+    // Create a rotated version of the shape
+    for (let x = 0; x < currentPiece.shape[0].length; x++) {
         const newRow = [];
-        for (let row = rows - 1; row >= 0; row--) {
-            newRow.push(originalShape[row][col]);
+        for (let y = currentPiece.shape.length - 1; y >= 0; y--) {
+            newRow.push(currentPiece.shape[y][x]);
         }
         newShape.push(newRow);
     }
     
-    // Check if the rotation is valid
-    if (!checkCollision(
-        gameState.currentPiece.pos.x,
-        gameState.currentPiece.pos.y,
-        newShape
-    )) {
-        gameState.currentPiece.shape = newShape;
-    }
-}
-
-// Drop the piece all the way down
-function hardDrop() {
-    if (gameState.isGameOver || gameState.isPaused) return;
-    
-    let dropDistance = 0;
-    
-    // Calculate drop distance
-    while (!checkCollision(
-        gameState.currentPiece.pos.x,
-        gameState.currentPiece.pos.y + dropDistance + 1,
-        gameState.currentPiece.shape
-    )) {
-        dropDistance++;
-    }
-    
-    // Move piece to drop position
-    gameState.currentPiece.pos.y += dropDistance;
-    
-    // Add score for hard drop
-    gameState.score += dropDistance * GAME.POINTS.HARD_DROP;
-    updateUI();
-    
-    // Lock the piece in place
-    lockPiece();
-}
-
-// Check if a piece would collide at the given position
-function checkCollision(posX, posY, shape) {
-    for (let y = 0; y < shape.length; y++) {
-        for (let x = 0; x < shape[y].length; x++) {
-            if (shape[y][x] !== 0) {
-                const boardX = posX + x;
-                const boardY = posY + y;
-                
-                // Check boundaries
-                if (
-                    boardX < 0 ||
-                    boardX >= GRID.COLS ||
-                    boardY >= GRID.ROWS ||
-                    (boardY >= 0 && gameState.board[boardY][boardX] !== 0)
-                ) {
-                    return true;
-                }
+    // Check if rotation is possible
+    if (!checkCollision(currentPiece.x, currentPiece.y, newShape)) {
+        currentPiece.shape = newShape;
+    } else {
+        // Try wall kicks (move left/right if rotation hits a wall)
+        const kicks = [1, -1, 2, -2];
+        for (const kick of kicks) {
+            if (!checkCollision(currentPiece.x + kick, currentPiece.y, newShape)) {
+                currentPiece.x += kick;
+                currentPiece.shape = newShape;
+                break;
             }
         }
     }
-    return false;
 }
 
-// Lock the current piece in place and check for completed lines
+/**
+ * Drop the current piece to the bottom instantly
+ */
+function hardDrop() {
+    if (gameState.isGameOver || gameState.isPaused || !gameState.currentPiece) return;
+    
+    let dropDistance = 0;
+    const { currentPiece } = gameState;
+    
+    // Calculate drop distance
+    while (!checkCollision(currentPiece.x, currentPiece.y + dropDistance + 1, currentPiece.shape)) {
+        dropDistance++;
+    }
+    
+    if (dropDistance > 0) {
+        currentPiece.y += dropDistance;
+        gameState.score += dropDistance * GAME.POINTS.HARD_DROP;
+        updateUI();
+    }
+    
+    lockPiece();
+}
+
+/**
+ * Lock the current piece in place and check for completed lines
+ */
 function lockPiece() {
-    const { shape, pos, colorIndex } = gameState.currentPiece;
+    const { currentPiece, board } = gameState;
     
     // Add piece to the board
-    for (let y = 0; y < shape.length; y++) {
-        for (let x = 0; x < shape[y].length; x++) {
-            if (shape[y][x] !== 0) {
-                const boardY = pos.y + y;
-                const boardX = pos.x + x;
+    for (let y = 0; y < currentPiece.shape.length; y++) {
+        for (let x = 0; x < currentPiece.shape[y].length; x++) {
+            if (currentPiece.shape[y][x]) {
+                const boardY = currentPiece.y + y;
+                const boardX = currentPiece.x + x;
                 
-                // Check for game over (piece locked above the visible board)
+                // If piece is locked above the visible area, game over
                 if (boardY < 0) {
                     gameOver();
                     return;
                 }
                 
-                gameState.board[boardY][boardX] = colorIndex + 1; // +1 because 0 is empty
+                board[boardY][boardX] = currentPiece.color + 1; // +1 because 0 is empty
             }
         }
     }
@@ -572,135 +618,455 @@ function lockPiece() {
     spawnNewPiece();
 }
 
-// Spawn a new piece
+/**
+ * Spawn a new piece at the top of the board
+ */
 function spawnNewPiece() {
     gameState.currentPiece = gameState.nextPiece || createPiece();
     gameState.nextPiece = createPiece();
     
-    // Check for game over (new piece collides immediately)
+    // If the new piece immediately collides, game over
     if (checkCollision(
-        gameState.currentPiece.pos.x,
-        gameState.currentPiece.pos.y,
+        gameState.currentPiece.x,
+        gameState.currentPiece.y,
         gameState.currentPiece.shape
     )) {
         gameOver();
     }
 }
 
-// Clear completed lines and update score
+/**
+ * Clear completed lines and update the score
+ */
 function clearLines() {
+    const { board } = gameState;
     let linesCleared = 0;
     
     // Check each row from bottom to top
-    for (let y = GRID.ROWS - 1; y >= 0; y--) {
+    for (let y = board.length - 1; y >= 0; y--) {
         // If the row is full
-        if (gameState.board[y].every(cell => cell !== 0)) {
+        if (board[y].every(cell => cell !== 0)) {
             // Remove the row
-            gameState.board.splice(y, 1);
+            board.splice(y, 1);
             // Add a new empty row at the top
-            gameState.board.unshift(new Array(GRID.COLS).fill(0));
-            // Since we removed a row, check the same index again
-            y++;
+            board.unshift(Array(GRID.COLS).fill(0));
             linesCleared++;
+            // Check the same row again since we just moved all rows down
+            y++;
         }
     }
     
     if (linesCleared > 0) {
-        // Update score based on number of lines cleared
         updateScoreAfterLineClear(linesCleared);
-        // Update level if needed
         updateLevel();
-        // Update UI
-        updateUI();
     }
 }
 
-// Update score after clearing lines
+/**
+ * Update the score based on the number of lines cleared
+ * @param {number} linesCleared - Number of lines cleared
+ */
 function updateScoreAfterLineClear(linesCleared) {
     let points = 0;
     
     switch (linesCleared) {
-        case 1:
-            points = GAME.POINTS.SINGLE;
-            break;
-        case 2:
-            points = GAME.POINTS.DOUBLE;
-            break;
-        case 3:
-            points = GAME.POINTS.TRIPLE;
-            break;
-        case 4:
-            points = GAME.POINTS.TETRIS;
-            break;
+        case 1: points = GAME.POINTS.SINGLE; break;
+        case 2: points = GAME.POINTS.DOUBLE; break;
+        case 3: points = GAME.POINTS.TRIPLE; break;
+        case 4: points = GAME.POINTS.TETRIS; break;
     }
     
-    // Apply level multiplier
     gameState.score += points * gameState.level;
     gameState.lines += linesCleared;
+    updateUI();
 }
 
-// Update level if enough lines have been cleared
+/**
+ * Update the game level based on the number of lines cleared
+ */
 function updateLevel() {
     const newLevel = Math.floor(gameState.lines / GAME.LINES_PER_LEVEL) + 1;
     
     if (newLevel > gameState.level) {
         gameState.level = newLevel;
-        // Increase game speed (but don't go below minimum speed)
+        // Increase speed, but don't go below minimum speed
         gameState.dropInterval = Math.max(
             GAME.MIN_SPEED,
             GAME.INITIAL_SPEED - ((gameState.level - 1) * GAME.SPEED_DECREMENT)
         );
+        updateUI();
     }
 }
 
-// Update the UI with current game state
-function updateUI() {
-    const { score, level, lines } = gameState.elements;
+/**
+ * Check if a piece would collide at the given position
+ * @param {number} x - X position to check
+ * @param {number} y - Y position to check
+ * @param {Array} shape - The shape to check for collisions
+ * @returns {boolean} True if there would be a collision
+ */
+function checkCollision(x, y, shape) {
+    const { board } = gameState;
     
-    if (score) score.textContent = gameState.score;
-    if (level) level.textContent = gameState.level;
-    if (lines) lines.textContent = gameState.lines;
+    for (let row = 0; row < shape.length; row++) {
+        for (let col = 0; col < shape[row].length; col++) {
+            if (shape[row][col]) {
+                const boardX = x + col;
+                const boardY = y + row;
+                
+                // Check boundaries and collisions with other pieces
+                if (
+                    boardX < 0 ||
+                    boardX >= GRID.COLS ||
+                    boardY >= GRID.ROWS ||
+                    (boardY >= 0 && board[boardY] && board[boardY][boardX])
+                ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
-// Toggle pause state
+/**
+ * Draw the game board
+ */
+function drawBoard() {
+    const { ctx, board } = gameState;
+    
+    // Clear the canvas
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // Draw the background
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // Draw the grid
+    drawGrid();
+    
+    // Draw all blocks on the board
+    for (let y = 0; y < board.length; y++) {
+        for (let x = 0; x < board[y].length; x++) {
+            if (board[y][x]) {
+                drawBlock(x, y, board[y][x] - 1);
+            }
+        }
+    }
+}
+
+/**
+ * Draw the grid lines on the game board
+ */
+function drawGrid() {
+    const { ctx } = gameState;
+    const { COLS, ROWS, BLOCK_SIZE } = GRID;
+    
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    
+    // Vertical lines
+    for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * BLOCK_SIZE, 0);
+        ctx.lineTo(x * BLOCK_SIZE, ROWS * BLOCK_SIZE);
+        ctx.stroke();
+    }
+    
+    // Horizontal lines
+    for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * BLOCK_SIZE);
+        ctx.lineTo(COLS * BLOCK_SIZE, y * BLOCK_SIZE);
+        ctx.stroke();
+    }
+}
+
+/**
+ * Draw a single block on the canvas
+ * @param {number} x - The x-coordinate of the block
+ * @param {number} y - The y-coordinate of the block
+ * @param {number} colorIndex - Index of the color in the COLORS array
+ * @param {number} [alpha=1] - Opacity of the block (0-1)
+ */
+function drawBlock(x, y, colorIndex, alpha = 1) {
+    const { ctx } = gameState;
+    const { BLOCK_SIZE, COLORS } = GRID;
+    
+    // Set block color with alpha
+    ctx.fillStyle = COLORS[colorIndex];
+    ctx.globalAlpha = alpha;
+    
+    // Draw block with 3D effect
+    const padding = 2;
+    const innerPadding = 1;
+    
+    // Main block
+    ctx.fillRect(
+        x * BLOCK_SIZE + padding,
+        y * BLOCK_SIZE + padding,
+        BLOCK_SIZE - padding * 2,
+        BLOCK_SIZE - padding * 2
+    );
+    
+    // Highlight (top-left edge)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fillRect(
+        x * BLOCK_SIZE + padding,
+        y * BLOCK_SIZE + padding,
+        BLOCK_SIZE - padding * 2,
+        2
+    );
+    ctx.fillRect(
+        x * BLOCK_SIZE + padding,
+        y * BLOCK_SIZE + padding,
+        2,
+        BLOCK_SIZE - padding * 2
+    );
+    
+    // Shadow (bottom-right edge)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(
+        x * BLOCK_SIZE + padding,
+        (y + 1) * BLOCK_SIZE - padding - 1,
+        BLOCK_SIZE - padding * 2,
+        2
+    );
+    ctx.fillRect(
+        (x + 1) * BLOCK_SIZE - padding - 1,
+        y * BLOCK_SIZE + padding,
+        2,
+        BLOCK_SIZE - padding * 2
+    );
+    
+    // Reset global alpha
+    ctx.globalAlpha = 1;
+}
+
+/**
+ * Draw a tetromino piece on the canvas
+ * @param {Object} piece - The piece to draw
+ * @param {number} [alpha=1] - Opacity of the piece (0-1)
+ */
+function drawPiece(piece, alpha = 1) {
+    const { shape, color, x, y } = piece;
+    
+    for (let row = 0; row < shape.length; row++) {
+        for (let col = 0; col < shape[row].length; col++) {
+            if (shape[row][col]) {
+                drawBlock(x + col, y + row, color, alpha);
+            }
+        }
+    }
+}
+
+/**
+ * Draw the ghost piece (preview of where the piece will land)
+ */
+function drawGhostPiece() {
+    if (!gameState.currentPiece) return;
+    
+    const { currentPiece } = gameState;
+    let dropDistance = 0;
+    
+    // Calculate drop distance
+    while (!checkCollision(
+        currentPiece.x,
+        currentPiece.y + dropDistance + 1,
+        currentPiece.shape
+    )) {
+        dropDistance++;
+    }
+    
+    if (dropDistance > 0) {
+        // Draw a semi-transparent version of the piece at the drop position
+        const ghostPiece = {
+            ...currentPiece,
+            y: currentPiece.y + dropDistance
+        };
+        drawPiece(ghostPiece, 0.3);
+    }
+}
+
+/**
+ * Update the game UI elements (score, level, lines)
+ */
+function updateUI() {
+    const { elements, score, level, lines } = gameState;
+    
+    if (elements.scoreDisplay) {
+        elements.scoreDisplay.textContent = score.toString().padStart(6, '0');
+    }
+    
+    if (elements.levelDisplay) {
+        elements.levelDisplay.textContent = level;
+    }
+    
+    if (elements.linesDisplay) {
+        elements.linesDisplay.textContent = lines;
+    }
+}
+
+/**
+ * Toggle the pause state of the game
+ */
 function togglePause() {
     if (gameState.isGameOver) return;
     
     gameState.isPaused = !gameState.isPaused;
-    const { startPauseBtn } = gameState.elements;
+    
+    const { elements } = gameState;
     
     if (gameState.isPaused) {
-        startPauseBtn.textContent = 'RESUME';
-        // Pause the game loop by not requesting the next frame
         cancelAnimationFrame(gameState.animationId);
-        gameState.animationId = null;
+        if (elements.startPauseBtn) {
+            elements.startPauseBtn.textContent = 'Resume';
+        }
     } else {
-        startPauseBtn.textContent = 'PAUSE';
-        // Resume the game loop
         gameState.dropStart = performance.now();
+        gameState.animationId = requestAnimationFrame(gameLoop);
+        if (elements.startPauseBtn) {
+            elements.startPauseBtn.textContent = 'Pause';
+        }
+    }
+}
+
+/**
+ * Handle game over state
+ */
+function gameOver() {
+    gameState.isGameOver = true;
+    cancelAnimationFrame(gameState.animationId);
+    
+    const { elements } = gameState;
+    
+    if (elements.gameOverOverlay) {
+        elements.gameOverOverlay.style.display = 'flex';
+    }
+    
+    if (elements.finalScoreDisplay) {
+        elements.finalScoreDisplay.textContent = gameState.score;
+    }
+    
+    // Update button text
+    if (elements.startPauseBtn) {
+        elements.startPauseBtn.textContent = 'Start';
+    }
+    
+    // Play game over sound if available
+    if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
+        playGameOverSound();
+    }
+}
+
+/**
+ * Reset the game to its initial state
+ */
+function resetGame() {
+    const { elements } = gameState;
+    
+    // Reset game state
+    gameState.score = 0;
+    gameState.level = GAME.INITIAL_LEVEL;
+    gameState.lines = 0;
+    gameState.isGameOver = false;
+    gameState.isPaused = false;
+    gameState.dropInterval = GAME.INITIAL_SPEED;
+    
+    // Reset UI
+    updateUI();
+    
+    // Hide game over overlay
+    if (elements.gameOverOverlay) {
+        elements.gameOverOverlay.style.display = 'none';
+    }
+    
+    // Reset button text
+    if (elements.startPauseBtn) {
+        elements.startPauseBtn.textContent = 'Start';
+    }
+    
+    // Clear the board and create a new piece
+    createBoard();
+    gameState.currentPiece = null;
+    gameState.nextPiece = createPiece();
+    
+    // Start the game
+    startGame();
+}
+
+/**
+ * Start the game
+ */
+function startGame() {
+    const { elements } = gameState;
+    
+    // If game is already running, do nothing
+    if (gameState.animationId) {
+        return;
+    }
+    
+    // Reset game state if needed
+    if (gameState.isGameOver) {
+        resetGame();
+        return;
+    }
+    
+    // Set up initial pieces if needed
+    if (!gameState.currentPiece) {
+        gameState.currentPiece = createPiece();
+    }
+    
+    if (!gameState.nextPiece) {
+        gameState.nextPiece = createPiece();
+    }
+    
+    // Update UI
+    if (elements.startPauseBtn) {
+        elements.startPauseBtn.textContent = 'Pause';
+    }
+    
+    // Start the game loop
+    gameState.dropStart = performance.now();
+    gameState.animationId = requestAnimationFrame(gameLoop);
+}
+
+/**
+ * Main game loop
+ * @param {number} timestamp - Current timestamp from requestAnimationFrame
+ */
+function gameLoop(timestamp) {
+    // Calculate time since last drop
+    const deltaTime = timestamp - gameState.dropStart;
+    
+    // Check if it's time to drop the piece
+    if (deltaTime > gameState.dropInterval) {
+        move(0, 1); // Move down
+        gameState.dropStart = timestamp;
+    }
+    
+    // Draw everything
+    drawBoard();
+    
+    // Draw ghost piece (preview)
+    drawGhostPiece();
+    
+    // Draw current piece
+    if (gameState.currentPiece) {
+        drawPiece(gameState.currentPiece);
+    }
+    
+    // Continue the game loop
+    if (!gameState.isPaused && !gameState.isGameOver) {
         gameState.animationId = requestAnimationFrame(gameLoop);
     }
 }
 
-// Handle game over
-function gameOver() {
-    gameState.isGameOver = true;
-    gameState.isPaused = true;
-    
-    // Cancel the game loop
-    if (gameState.animationId) {
-        cancelAnimationFrame(gameState.animationId);
-        gameState.animationId = null;
-    }
-    
-    // Show game over screen
-    const { gameOverScreen, finalScore } = gameState.elements;
-    if (finalScore) finalScore.textContent = gameState.score;
-    if (gameOverScreen) gameOverScreen.classList.add('active');
-    
-    // Update button text
-    gameState.elements.startPauseBtn.textContent = 'START';
-}
-
 // Initialize the game when the page loads
-window.addEventListener('load', init);
+window.addEventListener('DOMContentLoaded', () => {
+    // Add loaded class when scripts are ready
+    document.documentElement.classList.add('js-enabled');
+    
+    // Initialize the game
+    startGame();
+});
