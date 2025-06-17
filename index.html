@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetris Game</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>Tetris</h1>
+        
+        <div class="game-info">
+            <div class="info-box">
+                <div class="info-label">SCORE</div>
+                <div id="score" class="info-value">0</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">LEVEL</div>
+                <div id="level" class="info-value">1</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">LINES</div>
+                <div id="lines" class="info-value">0</div>
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <canvas id="tetris"></canvas>
+            
+            <!-- Game Over Overlay -->
+            <div id="gameOver" class="game-over">
+                <div class="game-over-content">
+                    <h2>GAME OVER</h2>
+                    <p>SCORE: <span id="finalScore">0</span></p>
+                    <button id="gameOverRestart" class="btn">PLAY AGAIN</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <button id="rotate" class="control-btn" aria-label="Rotate">↻</button>
+                </div>
+                <div class="control-row">
+                    <button id="left" class="control-btn" aria-label="Move Left">←</button>
+                    <button id="down" class="control-btn" aria-label="Move Down">↓</button>
+                    <button id="right" class="control-btn" aria-label="Move Right">→</button>
+                </div>
+                <div class="control-row">
+                    <button id="drop" class="control-btn" aria-label="Drop">DROP</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="game-buttons">
+            <button id="startPause" class="btn">START</button>
+            <button id="restart" class="btn">RESET</button>
+        </div>
+        
+        <div id="gameOver" class="game-over">
+            <div class="game-over-content">
+                <h2>GAME OVER</h2>
+                <p>Score: <span id="finalScore">0</span></p>
+                <button id="gameOverRestart" class="btn">PLAY AGAIN</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/tetris.js"></script>
+</body>
+</html>
